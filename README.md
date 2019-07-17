@@ -10,5 +10,5 @@ Usage
 ```
 $ pip install -r requirements.txt
 ...
-$ python3 copy-shop.py <sauce-labs-test-report-url>
+$ SAUCE_USERNAME=<username> SAUCE_ACCESS_KEY=<access-key> python3 copy-shop.py <sauce-labs-test-report-url>
 ```
