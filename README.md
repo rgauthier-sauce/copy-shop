@@ -8,5 +8,7 @@ Usage
 -----
 
 ```
-./copy-shop.py <sauce-labs-test-report-url>
+$ pip install -r requirements.txt
+...
+$ python3 copy-shop.py <sauce-labs-test-report-url>
 ```
