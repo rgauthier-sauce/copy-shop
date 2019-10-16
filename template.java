@@ -43,6 +43,9 @@ $capabilities
 
     @Test
     public void simpleTest() throws InterruptedException {
+        WebElement el;
+
+$commands
     }
 
     // ----------
