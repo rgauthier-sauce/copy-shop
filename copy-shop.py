@@ -57,6 +57,8 @@ def extract_commands(domain, session_id, log_filename):
 def translate_commands(commands):
     java_commands = []
     for command in commands:
+        if "status" in command:
+            continue
         if command["method"] == "GET":
             continue
 
