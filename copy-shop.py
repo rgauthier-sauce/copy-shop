@@ -3,6 +3,7 @@ from requests.auth import HTTPBasicAuth
 from urllib.parse import urlparse
 from sys import argv
 
+import argparse
 import os
 import json
 import requests
@@ -87,19 +88,25 @@ def escape(s):
     # s = s.replace("'", "\'")
     return s
 
-def main():
-    url = argv[1]
+def main(arguments=None):
 
-    url_info = extract_url_info(url)
-    
-    info = retrieve_job_info(url_info["domain"], url_info["job_id"])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("job_urls", nargs="+", help="URL of test to copy.")
 
-    log_filename = get_log_filename(url_info["domain"], url_info["job_id"])
-    commands = extract_commands(url_info["domain"], url_info["job_id"], log_filename)
-    java_commands = translate_commands(commands)
+    args = parser.parse_args(arguments)
 
-    template = Template(open("./template.java").read())
-    print(job_info_to_java(info, url_info["domain"], java_commands, template))
+    for job_url in args.job_urls:
+
+        url_info = extract_url_info(job_url)
+
+        info = retrieve_job_info(url_info["domain"], url_info["job_id"])
+
+        log_filename = get_log_filename(url_info["domain"], url_info["job_id"])
+        commands = extract_commands(url_info["domain"], url_info["job_id"], log_filename)
+        java_commands = translate_commands(commands)
+
+        template = Template(open("./template.java").read())
+        print(job_info_to_java(info, url_info["domain"], java_commands, template))
 
 if __name__ == "__main__":
     main()
