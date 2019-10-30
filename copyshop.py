@@ -79,6 +79,8 @@ def translate_commands(commands):
             if command["request"]["using"] == "xpath":
                 c = "el = driver.findElement(By.xpath(\"{}\"));"\
                         .format(escape(command["request"]["value"]))
+            elif command["request"]["using"] == "name":
+                c = "el = driver.findElement(By.name(\"{}\"));".format(escape(command["request"]["value"]))
         elif command["path"].startswith("element/") and \
                 command["path"].endswith("/click") and \
                 command["method"] == "POST":
@@ -129,7 +131,6 @@ def main(arguments=None):
         template = Template(open("./template.java").read())
         print(job_info_to_java(info, url_info["domain"], java_commands,
                                template))
-
 
 if __name__ == "__main__":
     main()
