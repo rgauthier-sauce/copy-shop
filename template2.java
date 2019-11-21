@@ -23,10 +23,13 @@ public class AppiumTest {
     public void setUp() throws MalformedURLException {
         DesiredCapabilities caps = new DesiredCapabilities();
 
-$capabilities
+{{capabilities}}
 
-
-        driver = new IOSDriver(new URL("$domain"), caps);
+{% if os == "IOS" %}
+        driver = new IOSDriver(new URL("{{domain}}"), caps);
+{% else %}
+        driver = new AndroidDriver(new URL("{{domain}}"), caps);
+{% endif %}
         resultWatcher.setRemoteWebDriver(driver);
 
         System.out.println(driver.getSessionId().toString());
@@ -42,7 +45,7 @@ $capabilities
         WebElement el;
         driver.manage().timeouts().implicitlyWait(30, TimeUnit.SECONDS);
 
-$commands
+{{commands}}
     }
 
 }

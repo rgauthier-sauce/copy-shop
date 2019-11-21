@@ -26,9 +26,9 @@ public class SeleniumTest implements SauceOnDemandSessionIdProvider {
     public void setUp() throws Exception {
         DesiredCapabilities caps = new DesiredCapabilities();
 
-$capabilities
+{{capabilities}}
 
-        URL url = new URL("https://" + username+ ":" + accesskey + "@$domain/wd/hub");
+        URL url = new URL("https://" + username+ ":" + accesskey + "@{{domain}}/wd/hub");
         System.out.println(url);
         System.out.println(caps);
         this.driver = new RemoteWebDriver(url, caps);
@@ -45,7 +45,7 @@ $capabilities
     public void simpleTest() throws InterruptedException {
         WebElement el;
 
-$commands
+{{commands}}
     }
 
     // ----------

@@ -1,6 +1,7 @@
 from string import Template
 from requests.auth import HTTPBasicAuth
 from urllib.parse import urlparse
+from jinja2 import Template
 
 import argparse
 import os
@@ -30,7 +31,13 @@ def retrieve_rdc_appium_logs(domain, username, project, job_id):
 
     url = "https://app.testobject.com/api/rest/v2/logs/{}/appium".format(job_id)
     r = requests.get(url, auth=HTTPBasicAuth(username, api_key))
-    return r.json()
+    logs = r.json()
+
+    url = "https://app.testobject.com/api/rest/v2/reports/{}".format(job_id)
+    r = requests.get(url, auth=HTTPBasicAuth(username, api_key))
+    device_os = r.json()["report"]["deviceDescriptor"]["os"]
+
+    return device_os, logs
 
 
 def job_info_to_java(info, domain, commands, template):
@@ -51,11 +58,11 @@ def job_info_to_java(info, domain, commands, template):
         domain = "ondemand.eu-central-1.saucelabs.com"
 
     commands = "\n".join(commands)
-    return template.substitute(username=USERNAME, access_key=ACCESS_KEY,
+    return template.render(username=USERNAME, access_key=ACCESS_KEY,
                                capabilities=capabilities,
                                commands=commands, domain=domain)
 
-def rdc_job_info_to_java(info, domain, commands, template):
+def rdc_job_info_to_java(info, domain, device_os, commands, template):
     capabilities = ""
     for key, value in info.items():
         if value is None:
@@ -73,8 +80,8 @@ def rdc_job_info_to_java(info, domain, commands, template):
         raise Exception("Invalid domain: {}".format(domain))
 
     commands = "\n".join(commands)
-    return template.substitute(username=USERNAME, access_key=ACCESS_KEY,
-                               capabilities=capabilities,
+    return template.render(username=USERNAME, access_key=ACCESS_KEY,
+                               capabilities=capabilities, os=device_os,
                                commands=commands, domain=domain)
 
 def extract_vdc_url_info(url):
@@ -244,12 +251,12 @@ def _rdc_main(args, job_url):
     if not MASTER_PASSWORD:
         raise Exception("Environment variable MASTER_PASSWORD is empty. It is required for RDC URLs.")
     url_info = extract_rdc_url_info(job_url)
-    info = retrieve_rdc_appium_logs(url_info["domain"], url_info["username"], url_info["project"], url_info["job_id"])
-
+    device_os, info = retrieve_rdc_appium_logs(url_info["domain"], url_info["username"], url_info["project"], url_info["job_id"])
+    
     capabilities, java_commands = translate_rdc_commands(info)
 
     template = Template(open("./template2.java").read())
-    print(rdc_job_info_to_java(capabilities, url_info["domain"], java_commands,
+    print(rdc_job_info_to_java(capabilities, url_info["domain"], device_os, java_commands,
                             template))
 
 if __name__ == "__main__":
