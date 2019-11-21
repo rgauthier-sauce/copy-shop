@@ -10,7 +10,7 @@ import requests
 
 USERNAME = os.environ["SAUCE_USERNAME"]
 ACCESS_KEY = os.environ["SAUCE_ACCESS_KEY"]
-MASTER_PASSWORD = os.environ["MASTER_PASSWORD"]
+MASTER_PASSWORD = os.environ.get("MASTER_PASSWORD")
 
 
 def retrieve_job_info(domain, session_id):
@@ -241,6 +241,8 @@ def _vdc_main(args, job_url):
                             template))
 
 def _rdc_main(args, job_url):
+    if not MASTER_PASSWORD:
+        raise Exception("Environment variable MASTER_PASSWORD is empty. It is required for RDC URLs.")
     url_info = extract_rdc_url_info(job_url)
     info = retrieve_rdc_appium_logs(url_info["domain"], url_info["username"], url_info["project"], url_info["job_id"])
 
