@@ -36,8 +36,9 @@ def retrieve_rdc_appium_logs(domain, username, project, job_id):
     url = "https://app.testobject.com/api/rest/v2/reports/{}".format(job_id)
     r = requests.get(url, auth=HTTPBasicAuth(username, api_key))
     device_os = r.json()["report"]["deviceDescriptor"]["os"]
+    dc_location = r.json()["report"]["dataCenterId"]
 
-    return device_os, logs
+    return device_os, dc_location, logs
 
 
 def job_info_to_java(info, domain, commands, template):
@@ -62,7 +63,7 @@ def job_info_to_java(info, domain, commands, template):
                                capabilities=capabilities,
                                commands=commands, domain=domain)
 
-def rdc_job_info_to_java(info, domain, device_os, commands, template):
+def rdc_job_info_to_java(info, dc_location, device_os, commands, template):
     capabilities = ""
     for key, value in info.items():
         if value is None:
@@ -74,8 +75,10 @@ def rdc_job_info_to_java(info, domain, device_os, commands, template):
 
         capabilities += "caps.setCapability(\"{}\", {});\n".format(key, value)
 
-    if domain == "app.testobject.com":
+    if dc_location == "EU":
         domain = "https://eu1.appium.testobject.com/wd/hub"
+    elif dc_location == "US":
+        domain = "https://us1.appium.testobject.com/wd/hub"
     else:
         raise Exception("Invalid domain: {}".format(domain))
 
@@ -251,12 +254,12 @@ def _rdc_main(args, job_url):
     if not MASTER_PASSWORD:
         raise Exception("Environment variable MASTER_PASSWORD is empty. It is required for RDC URLs.")
     url_info = extract_rdc_url_info(job_url)
-    device_os, info = retrieve_rdc_appium_logs(url_info["domain"], url_info["username"], url_info["project"], url_info["job_id"])
+    device_os, dc_location, info = retrieve_rdc_appium_logs(url_info["domain"], url_info["username"], url_info["project"], url_info["job_id"])
     
     capabilities, java_commands = translate_rdc_commands(info)
 
     template = Template(open("./template2.java").read())
-    print(rdc_job_info_to_java(capabilities, url_info["domain"], device_os, java_commands,
+    print(rdc_job_info_to_java(capabilities, dc_location, device_os, java_commands,
                             template))
 
 if __name__ == "__main__":
