@@ -29,7 +29,7 @@ setup(
     ],
     keywords='saucelabs copy-shop saucesupport',
     python_requires='>=3.5',
-    install_requires=['requests'],
+    install_requires=['requests', 'jinja2'],
     entry_points={
         'console_scripts': [
             'copyshop=copyshop:main',
