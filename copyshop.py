@@ -138,32 +138,36 @@ def translate_commands(commands):
             continue
 
         c = "// ignored command"
-        if command["path"] == "url" and command["method"] == "POST":
-            c = "driver.get(\"{}\");".format(command["request"]["url"])
-        elif command["path"] == "element" and command["method"] == "POST":
-            if command["request"]["using"] == "xpath":
-                c = "el = driver.findElement(By.xpath(\"{}\"));"\
-                        .format(escape(command["request"]["value"]))
-            elif command["request"]["using"] == "name":
-                c = "el = driver.findElement(By.name(\"{}\"));".format(escape(command["request"]["value"]))
-        elif command["path"].startswith("element/") and \
-                command["path"].endswith("/click") and \
-                command["method"] == "POST":
-            c = "el.click();"
-        elif command["path"].startswith("element/") \
-                and command["path"].endswith("/clear") \
-                and command["method"] == "POST":
-            c = "el.clear();"
-        elif command["path"].startswith("element/") and command["path"] \
-                .endswith("/value") and command["method"] == "POST":
-            c = "el.sendKeys(\"{}\");" \
-                .format(escape(command["request"]["value"][0]))
-        elif command["path"] == "timeouts" and command["method"] == "POST" \
-                and command["request"]["type"] == "implicit":
-            c = "driver.manage().timeouts().implicitlyWait({}," \
-                 "TimeUnit.MILLISECONDS);".format(command["request"]["ms"])
-        else:
-            c += ": {} {}".format(command["method"], command["path"])
+
+        try:
+            if command["path"] == "url" and command["method"] == "POST":
+                c = "driver.get(\"{}\");".format(command["request"]["url"])
+            elif command["path"] == "element" and command["method"] == "POST":
+                if command["request"]["using"] == "xpath":
+                    c = "el = driver.findElement(By.xpath(\"{}\"));"\
+                            .format(escape(command["request"]["value"]))
+                elif command["request"]["using"] == "name":
+                    c = "el = driver.findElement(By.name(\"{}\"));".format(escape(command["request"]["value"]))
+            elif command["path"].startswith("element/") and \
+                    command["path"].endswith("/click") and \
+                    command["method"] == "POST":
+                c = "el.click();"
+            elif command["path"].startswith("element/") \
+                    and command["path"].endswith("/clear") \
+                    and command["method"] == "POST":
+                c = "el.clear();"
+            elif command["path"].startswith("element/") and command["path"] \
+                    .endswith("/value") and command["method"] == "POST":
+                c = "el.sendKeys(\"{}\");" \
+                    .format(escape(command["request"]["value"][0]))
+            elif command["path"] == "timeouts" and command["method"] == "POST" \
+                    and command["request"]["type"] == "implicit":
+                c = "driver.manage().timeouts().implicitlyWait({}," \
+                    "TimeUnit.MILLISECONDS);".format(command["request"]["ms"])
+            else:
+                c += ": {} {}".format(command["method"], command["path"])
+        except:
+            c = "// failed to translate command: {} {}".format(command["method"], command["path"])
 
         java_commands.append(c)
     return java_commands
