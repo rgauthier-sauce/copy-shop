@@ -17,7 +17,16 @@ MASTER_PASSWORD = os.environ.get("MASTER_PASSWORD")
 def retrieve_job_info(domain, session_id):
     url = 'https://{}/rest/v1.1/jobs/{}'.format(domain, session_id)
     r = requests.get(url, auth=HTTPBasicAuth(USERNAME, ACCESS_KEY))
-    return r.json()["base_config"]
+    if r.status_code == 404:
+        raise Exception("Non existing job id ({}), or invalid credentials".format(session_id))
+
+    try:
+        info = r.json()["base_config"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the job metadata")
+    if info.get("recordLogs") == False:
+        raise Exception("Can't translate this job, as recordLogs was set to False")
+    return info
 
 def retrieve_rdc_appium_logs(domain, username, project, job_id):
     r = requests.post("https://app.testobject.com/api/rest/auth/login", {"user": username, "password": MASTER_PASSWORD})
@@ -117,7 +126,13 @@ def get_log_filename(domain, session_id):
     url = 'https://{}/rest/v1/{}/jobs/{}/assets'.format(domain, USERNAME,
                                                         session_id)
     r = requests.get(url, auth=HTTPBasicAuth(USERNAME, ACCESS_KEY))
-    return r.json()["sauce-log"]
+    if r.status_code == 404:
+        raise Exception("Non existing job id ({}), or invalid credentials".format(session_id))
+
+    try:
+        return r.json()["sauce-log"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the command logs URL")
     # return r.json()["base_config"]
 
 
@@ -126,7 +141,12 @@ def extract_commands(domain, session_id, log_filename):
                                                            session_id,
                                                            log_filename)
     r = requests.get(url, auth=HTTPBasicAuth(USERNAME, ACCESS_KEY))
-    return r.json()
+    if r.status_code == 404:
+        raise Exception("The log file doesn't exists ({})".format(url))
+    try:
+        return r.json()
+    except json.decoder.JSONDecodeError:
+        raise Exception("Failed to decode the JSON command logs")
 
 
 def translate_commands(commands):
@@ -226,7 +246,6 @@ def unescape(s):
     return s.replace("\/", "/")
 
 def main(arguments=None):
-
     parser = argparse.ArgumentParser()
     parser.add_argument("job_urls", nargs="+", help="URL of test to copy.")
 
