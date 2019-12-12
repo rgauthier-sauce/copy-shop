@@ -92,7 +92,7 @@ def extract_vdc_url_info(url):
     assert parsed.path.startswith("/tests/")
     return {
         "domain": parsed.netloc,
-        "job_id": parsed.path[6:]  # remove /tests/
+        "job_id": parsed.path[7:]  # remove /tests/
     }
 
 def extract_rdc_url_info(url):
