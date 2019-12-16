@@ -17,26 +17,61 @@ MASTER_PASSWORD = os.environ.get("MASTER_PASSWORD")
 def retrieve_job_info(domain, session_id):
     url = 'https://{}/rest/v1.1/jobs/{}'.format(domain, session_id)
     r = requests.get(url, auth=HTTPBasicAuth(USERNAME, ACCESS_KEY))
-    return r.json()["base_config"]
+    if r.status_code == 404:
+        raise Exception("Non existing job id ({}), or invalid credentials".format(session_id))
+
+    try:
+        info = r.json()["base_config"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the job metadata")
+    if info.get("recordLogs") == False:
+        raise Exception("Can't translate this job, as recordLogs was set to False")
+    return info
 
 def retrieve_rdc_appium_logs(domain, username, project, job_id):
     r = requests.post("https://app.testobject.com/api/rest/auth/login", {"user": username, "password": MASTER_PASSWORD})
+    if r.status_code == 401:
+        raise Exception("Invalid Master Password or you're trying to clone a report from an admin account")
     cookie = r.headers["Set-Cookie"]
 
     url = "https://app.testobject.com/api/rest/users"
     url += "/{}/projects/{}/apiKey/appium".format(username, project)
+    if r.status_code == 401:
+        raise Exception("Unauthorized request. Cookies might be invalid")
+    if r.status_code == 404:
+        raise Exception("Invalid project")
 
     r = requests.get(url, headers={"Cookie": cookie})
-    api_key = r.json()["id"]
+    try:
+        api_key = r.json()["id"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the API key")
 
     url = "https://app.testobject.com/api/rest/v2/logs/{}/appium".format(job_id)
     r = requests.get(url, auth=HTTPBasicAuth(username, api_key))
-    logs = r.json()
+    if r.status_code == 401:
+        raise Exception("Invalid credentials")
+    if r.status_code == 404:
+        raise Exception("Non existing job ID")
+    try:
+        logs = r.json()
+    except json.decoder.JSONDecodeError:
+        raise Exception("Failed to decode the JSON response while retrieving Appium logs")
+    if len(logs) == 0:
+        raise Exception("The Appium logs are empty")
 
     url = "https://app.testobject.com/api/rest/v2/reports/{}".format(job_id)
     r = requests.get(url, auth=HTTPBasicAuth(username, api_key))
-    device_os = r.json()["report"]["deviceDescriptor"]["os"]
-    dc_location = r.json()["report"]["dataCenterId"]
+    if r.status_code == 401:
+        raise Exception("Invalid credentials")
+    if r.status_code == 404:
+        raise Exception("Non existing job ID")
+    try:
+        payload = r.json()
+        device_os = payload["report"]["deviceDescriptor"]["os"]
+        dc_location = payload["report"]["dataCenterId"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the job metadata")
 
     return device_os, dc_location, logs
 
@@ -92,7 +127,7 @@ def extract_vdc_url_info(url):
     assert parsed.path.startswith("/tests/")
     return {
         "domain": parsed.netloc,
-        "job_id": parsed.path[6:]  # remove /tests/
+        "job_id": parsed.path[7:]  # remove /tests/
     }
 
 def extract_rdc_url_info(url):
@@ -117,7 +152,13 @@ def get_log_filename(domain, session_id):
     url = 'https://{}/rest/v1/{}/jobs/{}/assets'.format(domain, USERNAME,
                                                         session_id)
     r = requests.get(url, auth=HTTPBasicAuth(USERNAME, ACCESS_KEY))
-    return r.json()["sauce-log"]
+    if r.status_code == 404:
+        raise Exception("Non existing job id ({}), or invalid credentials".format(session_id))
+
+    try:
+        return r.json()["sauce-log"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the command logs URL")
     # return r.json()["base_config"]
 
 
@@ -126,7 +167,12 @@ def extract_commands(domain, session_id, log_filename):
                                                            session_id,
                                                            log_filename)
     r = requests.get(url, auth=HTTPBasicAuth(USERNAME, ACCESS_KEY))
-    return r.json()
+    if r.status_code == 404:
+        raise Exception("The log file doesn't exists ({})".format(url))
+    try:
+        return r.json()
+    except json.decoder.JSONDecodeError:
+        raise Exception("Failed to decode the JSON command logs")
 
 
 def translate_commands(commands):
@@ -138,32 +184,36 @@ def translate_commands(commands):
             continue
 
         c = "// ignored command"
-        if command["path"] == "url" and command["method"] == "POST":
-            c = "driver.get(\"{}\");".format(command["request"]["url"])
-        elif command["path"] == "element" and command["method"] == "POST":
-            if command["request"]["using"] == "xpath":
-                c = "el = driver.findElement(By.xpath(\"{}\"));"\
-                        .format(escape(command["request"]["value"]))
-            elif command["request"]["using"] == "name":
-                c = "el = driver.findElement(By.name(\"{}\"));".format(escape(command["request"]["value"]))
-        elif command["path"].startswith("element/") and \
-                command["path"].endswith("/click") and \
-                command["method"] == "POST":
-            c = "el.click();"
-        elif command["path"].startswith("element/") \
-                and command["path"].endswith("/clear") \
-                and command["method"] == "POST":
-            c = "el.clear();"
-        elif command["path"].startswith("element/") and command["path"] \
-                .endswith("/value") and command["method"] == "POST":
-            c = "el.sendKeys(\"{}\");" \
-                .format(escape(command["request"]["value"][0]))
-        elif command["path"] == "timeouts" and command["method"] == "POST" \
-                and command["request"]["type"] == "implicit":
-            c = "driver.manage().timeouts().implicitlyWait({}," \
-                 "TimeUnit.MILLISECONDS);".format(command["request"]["ms"])
-        else:
-            c += ": {} {}".format(command["method"], command["path"])
+
+        try:
+            if command["path"] == "url" and command["method"] == "POST":
+                c = "driver.get(\"{}\");".format(command["request"]["url"])
+            elif command["path"] == "element" and command["method"] == "POST":
+                if command["request"]["using"] == "xpath":
+                    c = "el = driver.findElement(By.xpath(\"{}\"));"\
+                            .format(escape(command["request"]["value"]))
+                elif command["request"]["using"] == "name":
+                    c = "el = driver.findElement(By.name(\"{}\"));".format(escape(command["request"]["value"]))
+            elif command["path"].startswith("element/") and \
+                    command["path"].endswith("/click") and \
+                    command["method"] == "POST":
+                c = "el.click();"
+            elif command["path"].startswith("element/") \
+                    and command["path"].endswith("/clear") \
+                    and command["method"] == "POST":
+                c = "el.clear();"
+            elif command["path"].startswith("element/") and command["path"] \
+                    .endswith("/value") and command["method"] == "POST":
+                c = "el.sendKeys(\"{}\");" \
+                    .format(escape(command["request"]["value"][0]))
+            elif command["path"] == "timeouts" and command["method"] == "POST" \
+                    and command["request"]["type"] == "implicit":
+                c = "driver.manage().timeouts().implicitlyWait({}," \
+                    "TimeUnit.MILLISECONDS);".format(command["request"]["ms"])
+            else:
+                c += ": {} {}".format(command["method"], command["path"])
+        except:
+            c = "// failed to translate command: {} {}".format(command["method"], command["path"])
 
         java_commands.append(c)
     return java_commands
@@ -222,7 +272,6 @@ def unescape(s):
     return s.replace("\/", "/")
 
 def main(arguments=None):
-
     parser = argparse.ArgumentParser()
     parser.add_argument("job_urls", nargs="+", help="URL of test to copy.")
 
