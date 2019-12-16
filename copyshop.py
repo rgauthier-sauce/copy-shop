@@ -30,22 +30,48 @@ def retrieve_job_info(domain, session_id):
 
 def retrieve_rdc_appium_logs(domain, username, project, job_id):
     r = requests.post("https://app.testobject.com/api/rest/auth/login", {"user": username, "password": MASTER_PASSWORD})
+    if r.status_code == 401:
+        raise Exception("Invalid Master Password or you're trying to clone a report from an admin account")
     cookie = r.headers["Set-Cookie"]
 
     url = "https://app.testobject.com/api/rest/users"
     url += "/{}/projects/{}/apiKey/appium".format(username, project)
+    if r.status_code == 401:
+        raise Exception("Unauthorized request. Cookies might be invalid")
+    if r.status_code == 404:
+        raise Exception("Invalid project")
 
     r = requests.get(url, headers={"Cookie": cookie})
-    api_key = r.json()["id"]
+    try:
+        api_key = r.json()["id"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the API key")
 
     url = "https://app.testobject.com/api/rest/v2/logs/{}/appium".format(job_id)
     r = requests.get(url, auth=HTTPBasicAuth(username, api_key))
-    logs = r.json()
+    if r.status_code == 401:
+        raise Exception("Invalid credentials")
+    if r.status_code == 404:
+        raise Exception("Non existing job ID")
+    try:
+        logs = r.json()
+    except json.decoder.JSONDecodeError:
+        raise Exception("Failed to decode the JSON response while retrieving Appium logs")
+    if len(logs) == 0:
+        raise Exception("The Appium logs are empty")
 
     url = "https://app.testobject.com/api/rest/v2/reports/{}".format(job_id)
     r = requests.get(url, auth=HTTPBasicAuth(username, api_key))
-    device_os = r.json()["report"]["deviceDescriptor"]["os"]
-    dc_location = r.json()["report"]["dataCenterId"]
+    if r.status_code == 401:
+        raise Exception("Invalid credentials")
+    if r.status_code == 404:
+        raise Exception("Non existing job ID")
+    try:
+        payload = r.json()
+        device_os = payload["report"]["deviceDescriptor"]["os"]
+        dc_location = payload["report"]["dataCenterId"]
+    except (json.decoder.JSONDecodeError, KeyError):
+        raise Exception("Failed to decode the JSON response while retrieving the job metadata")
 
     return device_os, dc_location, logs
 
